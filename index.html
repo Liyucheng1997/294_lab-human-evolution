@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="人类的进化：从 38 亿年前的早期生命证据到智人，15 站交互式 3D 演化之旅。" />
+    <meta property="og:title" content="人类的进化 · 38 亿年的 3D 旅程" />
+    <meta property="og:description" content="从原核细胞到智人，拖拽、缩放并探索 15 个关键演化节点。" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="__SITE_ORIGIN__/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="人类的进化 · 38 亿年的 3D 旅程" />
+    <meta name="twitter:description" content="从原核细胞到智人，探索 15 个关键演化节点。" />
+    <meta name="twitter:image" content="__SITE_ORIGIN__/og.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%231d1a17'/%3E%3Cpath d='M18 44 C24 20 40 20 46 44' stroke='%23e2b170' stroke-width='5' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='22' r='6' fill='%23f2d9b0'/%3E%3C/svg%3E"
+    />
+    <title>人类的进化 · 38 亿年的旅程</title>
+  </head>
+  <body>
+    <div id="app">
+      <main class="stage" aria-label="人类演化 3D 可视化">
+        <div class="viewport" id="viewport">
+          <canvas id="scene"></canvas>
+          <div class="labels" id="labels"></div>
+          <div class="veil" id="veil"></div>
+        </div>
+
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <div>
+              <h1>人类的进化</h1>
+              <p>从最早生命证据到智人 · 38 亿年 · 15 站</p>
+            </div>
+          </div>
+          <nav class="chapters" id="chapters" aria-label="章节"></nav>
+          <div class="actions">
+            <button class="btn" id="btn-play" title="自动播放（空格）"><span class="ico">▶</span><span>自动播放</span></button>
+            <button class="btn toggle active" id="btn-rotate" title="自动环绕">环绕</button>
+            <button class="btn toggle active" id="btn-hotspots" title="显示/隐藏结构标注">标注</button>
+            <button class="btn toggle" id="btn-wire" title="线框结构视图">线框</button>
+            <button class="btn" id="btn-tree" title="打开谱系树">谱系树</button>
+            <button class="btn" id="btn-sources" title="查看科学来源">科学来源</button>
+            <button class="btn" id="btn-reset" title="复位视角">复位</button>
+          </div>
+        </header>
+
+        <aside class="panel" id="panel" aria-live="polite">
+          <div class="panel-head">
+            <div class="kicker"><span id="stage-index">第 01 站</span><i></i><span id="stage-chapter">微观生命</span></div>
+            <h2 id="stage-name">生命起源</h2>
+            <div class="organism"><span id="stage-organism">最早的原核细胞</span><em id="stage-latin">Prokaryota</em></div>
+            <div class="chips">
+              <span class="chip time" id="stage-years">约 38 亿年前</span>
+              <span class="chip" id="stage-era">太古宙</span>
+              <span class="chip" id="stage-size">1–2 μm</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <blockquote class="innovation" id="stage-innovation"></blockquote>
+            <p class="summary" id="stage-summary"></p>
+            <div class="metrics" id="stage-metrics"></div>
+            <div class="calendar" id="stage-calendar"></div>
+            <section class="sec">
+              <h3>关键要点</h3>
+              <ul id="stage-points"></ul>
+            </section>
+            <section class="sec">
+              <h3>化石与证据</h3>
+              <p id="stage-evidence"></p>
+            </section>
+            <section class="sec legacy">
+              <h3>留在你身上的痕迹</h3>
+              <p id="stage-legacy"></p>
+            </section>
+            <section class="sec" id="brain-sec" hidden>
+              <h3>脑容量对比 (cc)</h3>
+              <div class="brain-chart" id="brain-chart"></div>
+            </section>
+            <p class="habitat"><span>栖息环境</span><b id="stage-habitat"></b></p>
+          </div>
+          <button class="panel-collapse" id="btn-collapse" title="收起/展开面板" aria-label="收起或展开面板">‹</button>
+        </aside>
+
+        <div class="hotspot-card" id="hotspot-card" hidden>
+          <button class="close" id="hotspot-close" aria-label="关闭">×</button>
+          <small>结构标注 <b id="hotspot-num">1</b></small>
+          <h4 id="hotspot-title"></h4>
+          <p id="hotspot-detail"></p>
+        </div>
+
+        <div class="hint" id="hint">拖拽旋转 · 滚轮缩放 · ← → 切换阶段 · 空格 播放</div>
+
+        <footer class="timeline" aria-label="时间轴">
+          <button class="nav prev" id="btn-prev" aria-label="上一站">‹</button>
+          <div class="track-wrap">
+            <div class="ticks" id="ticks"></div>
+            <div class="track" id="track">
+              <div class="progress" id="progress"></div>
+              <div class="markers" id="markers"></div>
+            </div>
+            <div class="track-caption"><span>38 亿年前</span><span id="track-now">对数刻度 · 越靠右越近</span><span>今天</span></div>
+          </div>
+          <button class="nav next" id="btn-next" aria-label="下一站">›</button>
+        </footer>
+
+        <div class="modal" id="tree-modal" hidden>
+          <div class="modal-card">
+            <button class="close" id="tree-close" aria-label="关闭">×</button>
+            <h3>生命之树上的这条枝</h3>
+            <p class="modal-sub">每一站都是我们这条谱系上的一个节点；灰色分支是在那个节点分开、并存续至今或已灭绝的亲戚。点击节点可跳转。</p>
+            <div class="tree-scroll" id="tree"></div>
+          </div>
+        </div>
+
+        <div class="modal" id="sources-modal" hidden>
+          <div class="modal-card sources-card">
+            <button class="close" id="sources-close" aria-label="关闭">×</button>
+            <h3>证据从哪里来</h3>
+            <p class="modal-sub">这是一条经科学简化的主干路径，不是通往人类的线性阶梯。年代均为代表值；早期生命、真核细胞起源和人族分类仍在持续更新。</p>
+            <div class="source-list">
+              <a href="https://humanorigins.si.edu/education/introduction-human-evolution" target="_blank" rel="noreferrer"><b>Smithsonian Human Origins</b><span>人族化石、行为与时间线 ↗</span></a>
+              <a href="https://astrobiology.nasa.gov/education/alp/first-cells-arise/" target="_blank" rel="noreferrer"><b>NASA Astrobiology</b><span>早期细胞与大氧化事件 ↗</span></a>
+              <a href="https://www.nature.com/articles/s41586-024-07677-6" target="_blank" rel="noreferrer"><b>Nature</b><span>真核细胞的起源与内共生 ↗</span></a>
+              <a href="https://www.nhm.ac.uk/discover/origin-of-life-on-earth.html" target="_blank" rel="noreferrer"><b>Natural History Museum</b><span>复杂生命、登陆与哺乳类 ↗</span></a>
+              <a href="https://www.nature.com/articles/s41576-023-00643-4" target="_blank" rel="noreferrer"><b>Nature Reviews Genetics</b><span>古 DNA 与丹尼索瓦人 ↗</span></a>
+            </div>
+            <p class="model-note"><b>3D 模型说明</b>　页面中的生物和环境是为解释特征而制作的概念复原，不是按比例的化石扫描，也不代表某个物种必然是我们的直接祖先。</p>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
