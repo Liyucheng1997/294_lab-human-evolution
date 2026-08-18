@@ -1,144 +1,175 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Grid, OrbitControls, Sparkles } from "@react-three/drei";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import type { Group, Mesh } from "three";
 
-type Era = "全部" | "细胞世界" | "复杂生命" | "脱水登陆" | "人族演化";
+type Stage = {
+  id: string; short: string; latin: string; title: string; time: string;
+  date: string; accent: string; color: string; environment: string;
+  fact: string; evidence: string; hotspot: string; hotspotDetail: string;
+};
 
-const milestones = [
-  { era: "细胞世界", time: "≥3.7 Ga", ago: "至少 37 亿年前", title: "早期生命的证据", tag: "高不确定性", text: "古老岩石中的同位素信号、微体化石与叠层石提示：简单细胞已经存在。它们不等于“第一个生命”，生命起源的时间与路径仍未定论。", note: "证据：地球化学·微体化石" },
-  { era: "细胞世界", time: "≈3.5 Ga", ago: "约 35 亿年前", title: "细菌与古菌的深层分化", tag: "共同祖先", text: "所有现生细胞生命共用遗传密码、核糖体等核心系统，指向“最后普遍共同祖先”（LUCA）。LUCA 是一个祖先种群，不是地球第一个生命。", note: "证据：比较基因组·系统发育" },
-  { era: "细胞世界", time: "≈2.7 Ga", ago: "至少 27 亿年前", title: "产氧光合作用演化", tag: "生态工程", text: "蓝细菌的祖先利用光能分解水并释放氧。最初的氧被海洋中还原性物质消耗，之后才开始在大气中累积。", note: "证据：叠层石·铁同位素" },
-  { era: "细胞世界", time: "2.4–2.1 Ga", ago: "24–21 亿年前", title: "大氧化事件", tag: "行星转折", text: "大气中氧气持久上升，让许多厌氧生物衰退，也为高效的有氧呼吸创造条件。演化没有“进步”义务；环境改变只是重写适应度地形。", note: "证据：硫同位素·条带状铁建造" },
-  { era: "细胞世界", time: "1.8–2.7 Ga", ago: "约 27–18 亿年前", title: "真核细胞：一场深度共生", tag: "内共生", text: "一个古菌谱系的宿主与α-变形菌建立内共生，后者成为线粒体。真核细胞的精确形成顺序仍在激烈研究中。", note: "证据：线粒体 DNA·分子系统树" },
-  { era: "复杂生命", time: "≈1.0 Ga", ago: "约 10 亿年前", title: "多细胞性反复出现", tag: "多次独立", text: "细胞粘附、分工与通信在植物、真菌、动物及多个藻类谱系中独立演化。“多细胞”不是一次性发明。", note: "证据：化石·发育基因组" },
-  { era: "复杂生命", time: "635–541 Ma", ago: "6.35–5.41 亿年前", title: "埃迪卡拉生物群", tag: "最早大型生命", text: "海床上出现了软体、叶状与分形形态的大型生物。其中哪些属于动物的干群仍存争议。", note: "证据：压印化石·生物标志物" },
-  { era: "复杂生命", time: "≈541 Ma", ago: "约 5.41 亿年前", title: "寒武纪生态系统重组", tag: "快速辐射", text: "在地质尺度上的数千万年内，多个动物门的可识别身体构型出现，捕食、感觉与硬骨骼推动生态军备竞赛。它并非生命突然从无到有。", note: "证据：软躯体化石库·遗迹化石" },
-  { era: "脱水登陆", time: "≈470 Ma", ago: "约 4.7 亿年前", title: "植物与真菌改造陆地", tag: "共生拓荒", text: "早期陆生植物与真菌互利共生，促进土壤形成与碳循环改变；节肢动物随后在新生态空间中多样化。", note: "证据：孢子化石·分子钟" },
-  { era: "脱水登陆", time: "≈375 Ma", ago: "约 3.75 亿年前", title: "四足动物的水陆过渡", tag: "现有结构改造", text: "肉鳍鱼的鳍内骨骼、肺样器官与头颈结构在浅水环境中被逐步改造。登陆不是某条鱼的一次“决定”。", note: "证据：Tiktaalik 等过渡化石" },
-  { era: "脱水登陆", time: "≈312 Ma", ago: "约 3.12 亿年前", title: "羊膜卵解锁干燥内陆", tag: "生殖创新", text: "包含羊膜等胚外膜的卵让脊椎动物生殖摆脱开放水体，羊膜动物随后分化为合弓类（通往哺乳类）与蜥形类（包含爬行类与鸟类）。", note: "证据：胚胎学·骨骼形态" },
-  { era: "脱水登陆", time: "≈225 Ma", ago: "约 2.25 亿年前", title: "最早哺乳类", tag: "夜行小型化", text: "最早哺乳类与恐龙长期共存。毛发、泌乳、高代谢与中耳骨等特征在哺乳形类演化中逐步拼合。", note: "证据：牙齿·颚骨·软组织印痕" },
-  { era: "人族演化", time: "≈66 Ma", ago: "约 6600 万年前", title: "大灭绝后，哺乳类辐射", tag: "机会与约束", text: "非鸟恐龙灭绝后，多个哺乳类支系进入空缺生态位。灵长类在随后数百万年出现，发展出抓握手、立体视觉与灵活行为。", note: "证据：化石序列·系统发育" },
-  { era: "人族演化", time: "7–6 Ma", ago: "700–600 万年前", title: "人族与黑猩猩谱系分开", tag: "不是从黑猩猩变来", text: "人类与现生黑猩猩共享一个已灭绝的共同祖先种群。分化不是一个瞬间，而是可能伴随有限基因交流的种群过程。", note: "证据：分子钟·早期人族化石" },
-  { era: "人族演化", time: "≥4.2 Ma", ago: "约 420 万年前起", title: "南方古猿：双足先于大脑", tag: "特征镶嵌", text: "骨盆、股骨和足迹证明稳定双足行走已出现，但脑容量仍接近类人猿。人类特征是在不同时间组合起来的。", note: "证据：Laetoli 足迹·骨盆化石" },
-  { era: "人族演化", time: "≈2.8 Ma", ago: "约 280 万年前", title: "Homo 属出现", tag: "分支丛林", text: "最早的人属化石出现于非洲。随后 Homo erectus 等支系具有更现代的身体比例，并约在 180 万年前已走出非洲。", note: "证据：下颌化石·石器·古地磁" },
-  { era: "人族演化", time: "≈300 ka", ago: "约 30 万年前", title: "Homo sapiens 在非洲演化", tag: "网络化起源", text: "智人的解剖特征可能在非洲多个相互联系的种群中逐步拼合，不必来自一个孤立地点的单一小群体。", note: "证据：Jebel Irhoud 化石·全基因组" },
-  { era: "人族演化", time: "70–40 ka", ago: "7–4 万年前", title: "扩散、相遇与混血", tag: "网，不只是树", text: "智人群体扩散到非洲以外，与尼安德特人、丹尼索瓦人等古人类谱系相遇并发生基因交流。它们不是通往我们的“失败台阶”。", note: "证据：古 DNA·考古遗址" },
-  { era: "人族演化", time: "≈12 ka", ago: "约 1.2 万年前", title: "文化进入快速反馈回路", tag: "基因—文化共演化", text: "农业在多地独立出现，改变人口、疾病与食物结构，并对乳糖耐受、免疫等遗传变异产生新选择压力。人类仍在演化。", note: "证据：古 DNA·同位素·考古学" },
-] as const;
+const stages: Stage[] = [
+  { id:"cell",short:"细胞",latin:"PROKARYOTIC CELL",title:"生命起步",time:"≥ 3.7 Ga",date:"至少 37 亿年前",accent:"#b8f06c",color:"#438667",environment:"无氧海洋",fact:"简单细胞已经存在。模型中的中央链状结构是拟核，不是真正的细胞核。",evidence:"同位素·叠层石·微体化石",hotspot:"拟核",hotspotDetail:"原核生物的 DNA 不被核膜包裹。"},
+  { id:"eukaryote",short:"真核",latin:"EUKARYOGENESIS",title:"两种生命合为一体",time:"1.8–2.7 Ga",date:"约 27–18 亿年前",accent:"#72d9ef",color:"#3189a0",environment:"原生海洋",fact:"古菌谱系的宿主与细菌建立内共生，后者最终成为线粒体。",evidence:"线粒体 DNA·双层膜·分子系统树",hotspot:"线粒体",hotspotDetail:"它保留自己的环状 DNA，显示其细菌起源。"},
+  { id:"ocean",short:"海洋动物",latin:"EARLY CHORDATES",title:"身体开始有了前后",time:"≈ 520 Ma",date:"约 5.2 亿年前",accent:"#ffbf69",color:"#a76939",environment:"寒武纪海洋",fact:"早期脊索动物形成明确的头尾轴、肌节与背侧神经索，但它们还不是有颌鱼类。",evidence:"澄江生物群·软躯体化石",hotspot:"脊索",hotspotDetail:"支撑身体的弹性结构，是脊柱的演化前身。"},
+  { id:"land",short:"登陆",latin:"TETRAPOD TRANSITION",title:"鳍内骨骼变成四肢",time:"≈ 375 Ma",date:"约 3.75 亿年前",accent:"#e9de73",color:"#69733d",environment:"泥盆与浅水",fact:"肉鳍鱼的鳍肢已有与上臂、前臂相应的骨骼。过渡发生在浅水边缘，不是一次跃上陆地。",evidence:"Tiktaalik·Acanthostega·骨骼同源",hotspot:"鳍肢骨",hotspotDetail:"一块上骨、两块前骨、多块末端骨的布局已出现。"},
+  { id:"mammal",short:"哺乳类",latin:"EARLY MAMMALIAFORMS",title:"在恐龙脚下的夜行者",time:"≈ 225 Ma",date:"约 2.25 亿年前",accent:"#ef9a75",color:"#815744",environment:"三叠纪森林",fact:"最早哺乳类与恐龙共存。毛发、高代谢与中耳骨是在哺乳形类中逐步组合的。",evidence:"牙齿·下颌·软组织印痕",hotspot:"中耳骨",hotspotDetail:"原先属于颌关节的骨骼逐步参与听觉。"},
+  { id:"hominin",short:"人族",latin:"AUSTRALOPITHECUS",title:"双足先于大脑",time:"≈ 3.7 Ma",date:"约 370 万年前",accent:"#f2c394",color:"#9c6947",environment:"林地与草地镶嵌",fact:"南方古猿已能稳定双足行走，但脑容量仍接近类人猿。人类特征不是一包同时出现的套装。",evidence:"Laetoli 足迹·骨盆·股骨",hotspot:"短宽骨盆",hotspotDetail:"骨盆侧向弯曲，让单腿支撑时能稳定躯干。"},
+  { id:"human",short:"智人",latin:"HOMO SAPIENS",title:"还在演化的一支",time:"≈ 300 ka",date:"约 30 万年前至今",accent:"#f2eee0",color:"#b8a48d",environment:"非洲，后扩散至全球",fact:"智人在非洲的联系种群中逐步演化，并与尼安德特人、丹尼索瓦人发生基因交流。",evidence:"化石·古 DNA·考古学",hotspot:"高圆颅形",hotspotDetail:"智人颅骨更高圆，眉脊减小；大脑不是简单变大，而是重组。"},
+];
 
-const branches = [
-  { name: "南方古猿类", range: "420–200 万年前", status: "多个并存支系", x: 8, w: 29, y: 18 },
-  { name: "傍人类", range: "270–120 万年前", status: "灭绝的专门化旁支", x: 20, w: 20, y: 40 },
-  { name: "早期 Homo", range: "280–150 万年前", status: "分类仍有争议", x: 31, w: 28, y: 62 },
-  { name: "H. erectus 广义群", range: "190–11 万年前", status: "首次广泛走出非洲", x: 49, w: 37, y: 28 },
-  { name: "尼安德特人", range: "40–4 万年前", status: "与智人有基因交流", x: 72, w: 18, y: 50 },
-  { name: "Homo sapiens", range: "30 万年前—现在", status: "今天唯一存活人类", x: 76, w: 24, y: 72 },
-] as const;
+function mat(color:string, wireframe:boolean, emissive="#000000"){
+  return <meshStandardMaterial color={color} roughness={.56} metalness={.03} wireframe={wireframe} emissive={emissive} emissiveIntensity={.45}/>;
+}
 
-const mechanisms = [
-  ["变异与重组", "制造可遗传差异，不预知环境需要。"],
-  ["自然选择", "影响繁殖成功的变异，在种群中频率改变。"],
-  ["遗传漂变", "有限种群中的随机抽样，也能大幅改变基因频率。"],
-  ["基因流", "个体迁移与杂交让遗传变异在种群间移动。"],
-  ["约束与偶然", "历史路径、发育结构与大灭绝限制了演化可走的路。"],
-  ["共生与水平转移", "线粒体、叶绿体与微生物基因交换让生命史也呈网状。"],
-] as const;
+function ProtoCell({wireframe}:{wireframe:boolean}){
+  return <group>
+    <mesh><icosahedronGeometry args={[2.1,5]}/><meshPhysicalMaterial color="#438667" roughness={.2} transmission={wireframe?0:.28} thickness={1.1} transparent opacity={wireframe?.3:.72} wireframe={wireframe}/></mesh>
+    <mesh rotation={[.7,.2,.5]}><torusKnotGeometry args={[.62,.12,150,18,2,5]}/>{mat("#d7ff7a",wireframe,"#6c992f")}</mesh>
+    {Array.from({length:15},(_,i)=><mesh key={i} position={[Math.sin(i*2.7)*1.35,Math.cos(i*1.4)*1.15,Math.sin(i*1.9)*1.2]}><sphereGeometry args={[.07+(i%3)*.03,16,16]}/>{mat(i%2?"#ef8b50":"#b9e96d",wireframe)}</mesh>)}
+  </group>;
+}
 
-export default function Home() {
-  const [era, setEra] = useState<Era>("全部");
-  const [active, setActive] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const eras: Era[] = ["全部", "细胞世界", "复杂生命", "脱水登陆", "人族演化"];
-  const filtered = useMemo(() => era === "全部" ? milestones : milestones.filter(m => m.era === era), [era]);
+function Eukaryote({wireframe}:{wireframe:boolean}){
+  return <group>
+    <mesh><sphereGeometry args={[2.12,64,64]}/><meshPhysicalMaterial color="#317f91" transparent opacity={wireframe?.25:.5} transmission={wireframe?0:.32} roughness={.18} wireframe={wireframe}/></mesh>
+    <mesh position={[-.35,.18,.1]}><sphereGeometry args={[.76,40,40]}/>{mat("#7bdcf0",wireframe,"#1a768c")}</mesh>
+    {[[-1.1,.75,.45],[.95,.65,.25],[.9,-.85,.6],[-.85,-.85,-.2]].map((p,i)=><mesh key={i} position={p as [number,number,number]} rotation={[0,i*.8,.5]}><capsuleGeometry args={[.18,.55,12,24]}/>{mat("#ffae65",wireframe,"#8e4725")}</mesh>)}
+    <mesh rotation={[1,.2,.3]}><torusGeometry args={[1.35,.035,12,100]}/>{mat("#bcefff",wireframe)}</mesh>
+  </group>;
+}
 
-  useEffect(() => {
-    const onScroll = () => {
-      const max = document.documentElement.scrollHeight - innerHeight;
-      setProgress(max > 0 ? scrollY / max : 0);
-    };
-    onScroll(); window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+function Chordate({wireframe}:{wireframe:boolean}){
+  return <group rotation={[0,-.32,0]}>
+    <mesh scale={[2.3,.58,.48]}>{<sphereGeometry args={[1,48,32]}/>} {mat("#c88747",wireframe)}</mesh>
+    <mesh position={[2.25,0,0]} rotation={[0,0,-Math.PI/2]}><coneGeometry args={[.78,1.45,3]}/>{mat("#e0a258",wireframe)}</mesh>
+    <mesh position={[-1.7,.18,.26]}><sphereGeometry args={[.14,24,24]}/>{mat("#efffca",wireframe,"#efffca")}</mesh>
+    <mesh position={[-.6,.55,0]} rotation={[0,0,-.25]}><coneGeometry args={[.36,1.05,3]}/>{mat("#e2a95c",wireframe)}</mesh>
+    <mesh position={[-.2,-.48,.24]} rotation={[1.2,0,.2]}><coneGeometry args={[.32,.85,3]}/>{mat("#a96d37",wireframe)}</mesh>
+    {Array.from({length:8},(_,i)=><mesh key={i} position={[-1+i*.38,0,.47]}><boxGeometry args={[.04,.68,.035]}/>{mat("#5d412b",wireframe)}</mesh>)}
+  </group>;
+}
 
-  useEffect(() => setActive(0), [era]);
+function Tetrapod({wireframe}:{wireframe:boolean}){
+  const limb=(x:number,z:number,side:number)=><group position={[x,-.22,z]} rotation={[0,0,side*.65]}><mesh><capsuleGeometry args={[.15,.72,10,18]}/>{mat("#8b934a",wireframe)}</mesh><mesh position={[side*.28,-.5,0]} rotation={[0,0,side*.7]}><capsuleGeometry args={[.11,.55,10,18]}/>{mat("#a5a858",wireframe)}</mesh></group>;
+  return <group rotation={[0,-.2,0]}>
+    <mesh scale={[2.05,.7,.62]}><sphereGeometry args={[1,48,32]}/>{mat("#737a3e",wireframe)}</mesh>
+    <mesh position={[-1.72,.2,0]} scale={[.78,.62,.62]}><sphereGeometry args={[1,36,24]}/>{mat("#858b49",wireframe)}</mesh>
+    <mesh position={[-2.18,.35,.42]}><sphereGeometry args={[.1,18,18]}/>{mat("#f2ee9b",wireframe,"#f2ee9b")}</mesh>
+    <mesh position={[2.1,0,0]} rotation={[0,0,-Math.PI/2]}><coneGeometry args={[.55,1.65,14]}/>{mat("#69713b",wireframe)}</mesh>
+    {limb(-.8,.5,-1)}{limb(-.8,-.5,-1)}{limb(.95,.5,1)}{limb(.95,-.5,1)}
+  </group>;
+}
 
-  return (
-    <main>
-      <div className="read-progress" style={{ transform: `scaleX(${progress})` }} />
-      <section className="hero" id="top">
-        <nav>
-          <a className="brand" href="#top">生命长河</a>
-          <div className="navlinks"><a href="#timeline">深时间</a><a href="#humans">人族丛林</a><a href="#mechanism">演化机制</a></div>
-          <span className="edition">SCIENCE EDITION · 2026</span>
-        </nav>
-        <div className="hero-copy">
-          <p className="eyebrow">3,800,000,000 YEARS · ONE UNBROKEN LINEAGE</p>
-          <h1>从一枚细胞<br />到会追问来处的人</h1>
-          <p className="dek">这不是一架通往人类的梯子，而是一棵枝繁叶茂、绝大多数枝条已消失的生命之树。</p>
-          <a className="primary" href="#timeline">开始 38 亿年的旅程 <span>↘</span></a>
-        </div>
-        <div className="cell-orbit" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
-        <div className="hero-scale"><span>地球形成</span><i></i><span>今天</span></div>
-      </section>
+function Mammal({wireframe}:{wireframe:boolean}){
+  const leg=(x:number,z:number)=><group position={[x,-.65,z]}><mesh><capsuleGeometry args={[.17,.9,10,18]}/>{mat("#7b5544",wireframe)}</mesh><mesh position={[0,-.58,.08]} rotation={[Math.PI/2,0,0]}><capsuleGeometry args={[.14,.35,8,14]}/>{mat("#6f493b",wireframe)}</mesh></group>;
+  return <group rotation={[0,-.45,0]}>
+    <mesh scale={[1.75,.82,.73]}><sphereGeometry args={[1,48,32]}/>{mat("#865f4b",wireframe)}</mesh>
+    <mesh position={[-1.65,.25,0]} scale={[.75,.65,.64]}><sphereGeometry args={[1,36,24]}/>{mat("#956b52",wireframe)}</mesh>
+    <mesh position={[-2.15,.12,0]} rotation={[0,0,Math.PI/2]}><coneGeometry args={[.38,.85,18]}/>{mat("#9f7459",wireframe)}</mesh>
+    <mesh position={[-1.72,.78,.35]} rotation={[.4,0,-.2]}><coneGeometry args={[.23,.72,14]}/>{mat("#9c7056",wireframe)}</mesh>
+    <mesh position={[-2.05,.37,.43]}><sphereGeometry args={[.09,16,16]}/>{mat("#fff3bf",wireframe,"#fff3bf")}</mesh>
+    <mesh position={[1.78,.18,0]} rotation={[0,0,-Math.PI/2]}><torusGeometry args={[1.05,.1,12,50,Math.PI*1.35]}/>{mat("#78503f",wireframe)}</mesh>
+    {leg(-1,.48)}{leg(-1,-.48)}{leg(.9,.48)}{leg(.9,-.48)}
+  </group>;
+}
 
-      <section className="premise section-pad">
-        <p className="chapter">00 · 阅读这棵树</p>
-        <div className="premise-grid"><h2>演化没有剧本。<br /><em>只有分叉、筛选与幸存。</em></h2><div><p>现代演化理论是一个可检验的科学框架：种群中可遗传的变异，在自然选择、遗传漂变、基因流等作用下世代累积。</p><p>它纳入了达尔文的自然选择、孟德尔遗传学、种群遗传学、中性演化、发育生物学、基因组学与内共生。科学界会争论时间、分支和机制的细节，但共同祖先与种群演化的核心证据极为坚实。</p></div></div>
-        <div className="truth-strip"><span>✕ 不是个体在一生中进化</span><span>✕ 不是向着更高级前进</span><span>✕ 人类不是预定终点</span></div>
-      </section>
+function Humanoid({wireframe,modern=false}:{wireframe:boolean;modern?:boolean}){
+  const skin=modern?"#b7a38c":"#9b6848"; const torso=modern?[.82,1.55,.48]:[.92,1.35,.55];
+  return <group position={[0,-1.4,0]} rotation={[0,-.25,0]}>
+    <mesh position={[0,3.02,0]} scale={modern?[.58,.72,.58]:[.64,.68,.66]}><sphereGeometry args={[1,40,32]}/>{mat(skin,wireframe)}</mesh>
+    {!modern&&<mesh position={[-.1,2.82,.56]} scale={[.5,.32,.34]}><sphereGeometry args={[1,24,18]}/>{mat("#a97856",wireframe)}</mesh>}
+    <mesh position={[0,1.75,0]} scale={torso as [number,number,number]}><sphereGeometry args={[1,36,28]}/>{mat(skin,wireframe)}</mesh>
+    <mesh position={[0,.65,0]} scale={[.72,.52,.5]}><sphereGeometry args={[1,32,24]}/>{mat(modern?"#a88e74":"#8e5e43",wireframe)}</mesh>
+    {[[-.58,1.9,.15,.22],[.58,1.9,.15,-.22]].map((p,i)=><group key={i} position={[p[0],p[1],p[2]]} rotation={[0,0,p[3]]}><mesh position={[0,-.56,0]}><capsuleGeometry args={[.19,1.12,10,18]}/>{mat(skin,wireframe)}</mesh><mesh position={[i?-.18:.18,-1.48,0]} rotation={[0,0,i?.22:-.22]}><capsuleGeometry args={[.16,.9,10,18]}/>{mat(skin,wireframe)}</mesh></group>)}
+    {[[-.33,.2,0,-.08],[.33,.2,0,.08]].map((p,i)=><group key={i} position={[p[0],p[1],p[2]]} rotation={[0,0,p[3]]}><mesh position={[0,-.62,0]}><capsuleGeometry args={[.25,1.18,10,18]}/>{mat(skin,wireframe)}</mesh><mesh position={[i?-.04:.04,-1.62,.04]}><capsuleGeometry args={[.2,.92,10,18]}/>{mat(skin,wireframe)}</mesh><mesh position={[0,-2.13,.17]} rotation={[Math.PI/2,0,0]}><capsuleGeometry args={[.19,.38,8,14]}/>{mat(skin,wireframe)}</mesh></group>)}
+  </group>;
+}
 
-      <section className="timeline-section section-pad" id="timeline">
-        <div className="section-head"><div><p className="chapter">01 · DEEP TIME</p><h2>把 38 亿年<br />装进一条时间轴</h2></div><p className="section-intro">点选时代，再选中一个节点。“Ga”表示十亿年前，“Ma”表示百万年前，“ka”表示千年前。</p></div>
-        <div className="era-tabs" role="tablist" aria-label="按演化阶段筛选">
-          {eras.map(e => <button role="tab" aria-selected={era === e} key={e} onClick={() => setEra(e)}>{e}<small>{e === "全部" ? milestones.length : milestones.filter(m => m.era === e).length}</small></button>)}
-        </div>
-        <div className="explorer">
-          <div className="event-list" role="tablist" aria-label="演化节点">
-            {filtered.map((m, i) => <button role="tab" aria-selected={active === i} key={m.title} onClick={() => setActive(i)}><span>{m.time}</span><b>{m.title}</b><i>→</i></button>)}
-          </div>
-          <article className="event-detail" aria-live="polite">
-            <div className="event-visual" aria-hidden="true"><div className={`organism organism-${active % 4}`}><i></i><i></i><b></b></div><span>{String(active + 1).padStart(2,"0")}</span></div>
-            <div className="event-copy"><span className="confidence">{filtered[active]?.tag}</span><p className="event-time">{filtered[active]?.ago}</p><h3>{filtered[active]?.title}</h3><p>{filtered[active]?.text}</p><footer>{filtered[active]?.note}</footer></div>
-          </article>
-        </div>
-        <p className="scale-note"><b>深时间提示</b> 如果把地球 45.4 亿年压缩成 24 小时，智人大约在最后 6 秒才出现，农业则只占最后约 0.23 秒。</p>
-      </section>
+function Model({id,wireframe}:{id:string;wireframe:boolean}){
+  if(id==="cell") return <ProtoCell wireframe={wireframe}/>;
+  if(id==="eukaryote") return <Eukaryote wireframe={wireframe}/>;
+  if(id==="ocean") return <Chordate wireframe={wireframe}/>;
+  if(id==="land") return <Tetrapod wireframe={wireframe}/>;
+  if(id==="mammal") return <Mammal wireframe={wireframe}/>;
+  return <Humanoid wireframe={wireframe} modern={id==="human"}/>;
+}
 
-      <section className="humans section-pad" id="humans">
-        <div className="section-head"><div><p className="chapter">02 · THE HUMAN THICKET</p><h2>不是队列，<br />是一片灌木丛</h2></div><p className="section-intro">过去 700 万年中，多种人族常常同时存在。这个简化图只表示时间重叠，不声称已解决每一条直接祖先关系。</p></div>
-        <div className="branch-chart">
-          <div className="chart-axis"><span>700 万年前</span><span>500 万</span><span>300 万</span><span>100 万</span><span>现在</span></div>
-          <div className="branch-field">
-            <div className="grid-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-            {branches.map(b => <div className="branch" key={b.name} style={{ left:`${b.x}%`, width:`${b.w}%`, top:`${b.y}%` }}><b>{b.name}</b><span>{b.range}</span><small>{b.status}</small></div>)}
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M5,26 C25,26 20,70 40,70 S50,36 68,36 S72,80 99,80"/><path d="M28,26 C35,26 35,48 46,48"/><path d="M65,36 C75,36 70,58 83,58"/></svg>
-          </div>
-        </div>
-        <div className="dna-callout"><span>DNA 改写了家谱</span><p>多数非洲以外现代人群的基因组中含有尼安德特人祖源成分；丹尼索瓦人祖源在大洋洲及部分亚洲人群中更显著。这说明人类演化同时具有分支和再次汇合。</p></div>
-      </section>
+function CameraRig({stage}:{stage:number}){
+  const {camera}=useThree();
+  useFrame((_,delta)=>{
+    const human=stage>4; const target=new THREE.Vector3(human?0:0,human?.35:0,human?8.7:7.4);
+    camera.position.lerp(target,1-Math.exp(-delta*2.4)); camera.lookAt(0,human?.25:0,0);
+  }); return null;
+}
 
-      <section className="mechanism section-pad" id="mechanism">
-        <div className="section-head"><div><p className="chapter">03 · HOW EVOLUTION WORKS</p><h2>不只是<br />“适者生存”</h2></div><p className="section-intro">适应度不是力量或聪明程度，而是在特定环境中把基因传向后代的相对成功率。</p></div>
-        <div className="mechanism-grid">{mechanisms.map((m,i) => <article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><h3>{m[0]}</h3><p>{m[1]}</p></article>)}</div>
-      </section>
+function EvolutionModel({stage,paused,wireframe}:{stage:number;paused:boolean;wireframe:boolean}){
+  const ref=useRef<Group>(null); const [born]=useState(()=>performance.now());
+  useFrame((state,delta)=>{
+    if(!ref.current)return;
+    const age=(performance.now()-born)/1000; const s=Math.min(1,age*1.7);
+    ref.current.scale.lerp(new THREE.Vector3(s,s,s),.16);
+    ref.current.position.y=Math.sin(state.clock.elapsedTime*.75)*.1;
+    if(!paused) ref.current.rotation.y+=delta*.08;
+  });
+  return <group ref={ref} scale={0.02} key={stages[stage].id}><Model id={stages[stage].id} wireframe={wireframe}/></group>;
+}
 
-      <section className="evidence section-pad">
-        <p className="chapter">04 · EVIDENCE, NOT A LADDER</p><h2>我们怎么知道？</h2>
-        <div className="evidence-row"><div><b>01</b><h3>化石与地层</h3><p>解剖变化、过渡形态与出现顺序。</p></div><div><b>02</b><h3>年代测定</h3><p>放射性同位素为岩层和化石提供时间标尺。</p></div><div><b>03</b><h3>基因组</h3><p>DNA 序列保留共同祖先、分支与混血的痕迹。</p></div><div><b>04</b><h3>现场观察</h3><p>抗药性、病毒与野外种群让演化在当下可观测。</p></div></div>
-      </section>
+function Hotspot({stage,open,onOpen}:{stage:number;open:boolean;onOpen:()=>void}){
+  const mesh=useRef<Mesh>(null); const positions:[[number,number,number],...Array<[number,number,number]>]=[[.35,.2,.8],[.95,.65,.6],[0,.35,.65],[.8,-.15,.75],[-1.55,.65,.65],[0,.7,.65],[0,3.35,.5]];
+  useFrame((state)=>{if(mesh.current){const s=1+Math.sin(state.clock.elapsedTime*3)*.18;mesh.current.scale.setScalar(s)}});
+  return <group position={positions[stage]}><mesh ref={mesh} onClick={(e)=>{e.stopPropagation();onOpen()}}><sphereGeometry args={[open?.16:.12,20,20]}/><meshBasicMaterial color={stages[stage].accent}/></mesh><pointLight color={stages[stage].accent} intensity={4} distance={2}/></group>;
+}
 
-      <section className="sources section-pad">
-        <div><p className="chapter">SOURCES & SCOPE</p><h2>科学是一张<br />不断更新的地图</h2></div>
-        <div className="source-copy"><p>页面时间为当前证据支持的约数或范围，并对起源生命、真核细胞形成、早期人族分类等存在争议的问题保留不确定性。主要参考：</p>
-          <a href="https://humanorigins.si.edu/education/introduction-human-evolution" target="_blank" rel="noreferrer">史密森学会·人类起源计划 <span>↗</span></a>
-          <a href="https://astrobiology.nasa.gov/education/alp/first-cells-arise/" target="_blank" rel="noreferrer">NASA Astrobiology·早期细胞与大氧化 <span>↗</span></a>
-          <a href="https://www.nature.com/articles/s41586-024-07677-6" target="_blank" rel="noreferrer">Nature·真核细胞起源综述 <span>↗</span></a>
-          <a href="https://www.nhm.ac.uk/discover/origin-of-life-on-earth.html" target="_blank" rel="noreferrer">英国自然历史博物馆·生命史 <span>↗</span></a>
-          <a href="https://www.nature.com/articles/s41576-023-00643-4" target="_blank" rel="noreferrer">Nature Reviews Genetics·丹尼索瓦人 <span>↗</span></a>
-        </div>
-      </section>
+function Scene({stage,paused,wireframe,hotspot,openHotspot}:{stage:number;paused:boolean;wireframe:boolean;hotspot:boolean;openHotspot:()=>void}){
+  return <Canvas camera={{position:[0,0,7.4],fov:40}} dpr={[1,1.6]} gl={{antialias:true,toneMapping:THREE.ACESFilmicToneMapping}}>
+    <color attach="background" args={["#050a08"]}/><fog attach="fog" args={["#050a08",8,18]}/>
+    <ambientLight intensity={.8}/><hemisphereLight color={stages[stage].accent} groundColor="#18201b" intensity={1.5}/>
+    <directionalLight position={[-5,6,5]} intensity={3.5} color="#eaf5da"/><pointLight position={[4,-2,3]} intensity={7} color={stages[stage].accent} distance={12}/>
+    <Suspense fallback={null}><EvolutionModel key={stages[stage].id} stage={stage} paused={paused} wireframe={wireframe}/>{hotspot&&<Hotspot stage={stage} open={hotspot} onOpen={openHotspot}/>}</Suspense>
+    <Sparkles count={stage<2?120:55} scale={[11,7,7]} size={stage<2?2.4:1.2} speed={.16} color={stages[stage].accent} opacity={.35}/>
+    <Grid position={[0,-3.25,0]} args={[20,20]} cellSize={.7} cellThickness={.4} cellColor="#33483d" sectionSize={3.5} sectionThickness={.7} sectionColor={stages[stage].color} fadeDistance={13} fadeStrength={1.5} infiniteGrid/>
+    <CameraRig stage={stage}/><OrbitControls makeDefault enablePan={false} minDistance={4.8} maxDistance={11} autoRotate={!paused} autoRotateSpeed={.28} target={[0,stage>4?.25:0,0]}/>
+  </Canvas>;
+}
 
-      <footer className="site-footer"><a href="#top" className="brand">生命长河</a><p>你不是演化的终点。<br />你是 38 亿年未曾中断的延续。</p><a href="#top" className="back-top">回到起点 ↑</a></footer>
-    </main>
-  );
+export default function Home(){
+  const [stage,setStage]=useState(0); const [paused,setPaused]=useState(false); const [wireframe,setWireframe]=useState(false); const [hotspot,setHotspot]=useState(true); const [detail,setDetail]=useState(false); const wheelLock=useRef(false);
+  const current=stages[stage]; const progress=(stage/(stages.length-1))*100;
+  const go=(next:number)=>{setStage(Math.max(0,Math.min(stages.length-1,next)));setDetail(false)};
+  useEffect(()=>{const key=(e:KeyboardEvent)=>{if(e.key==="ArrowRight"||e.key===" "){e.preventDefault();go(stage+1)}if(e.key==="ArrowLeft"){e.preventDefault();go(stage-1)}};window.addEventListener("keydown",key);return()=>window.removeEventListener("keydown",key)},[stage]);
+  useEffect(()=>{const wheel=(e:WheelEvent)=>{if(Math.abs(e.deltaY)<20||wheelLock.current)return;wheelLock.current=true;go(stage+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock.current=false,650)};window.addEventListener("wheel",wheel,{passive:true});return()=>window.removeEventListener("wheel",wheel)},[stage]);
+
+  return <main className="experience" style={{"--stage-accent":current.accent,"--stage-color":current.color} as React.CSSProperties}>
+    <header>
+      <a className="mark" href="#" onClick={e=>{e.preventDefault();go(0)}}>ORIGIN <span>/ 38</span></a>
+      <div className="status"><i/> EVOLUTION EXPLORER <b>{String(stage+1).padStart(2,"0")}</b></div>
+      <div className="header-actions"><button className={wireframe?"on":""} onClick={()=>setWireframe(!wireframe)} aria-pressed={wireframe}>结构视图</button><button onClick={()=>setPaused(!paused)}>{paused?"▶ 继续":"Ⅱ 暂停"}</button></div>
+    </header>
+    <section className="viewport">
+      <Scene stage={stage} paused={paused} wireframe={wireframe} hotspot={hotspot} openHotspot={()=>setDetail(!detail)}/>
+      <div className="hud hud-left">
+        <div className="chapter"><span>{String(stage+1).padStart(2,"0")}</span><i/><b>{current.latin}</b></div>
+        <h1 key={current.title}>{current.title}</h1>
+        <div className="time"><strong>{current.time}</strong><span>{current.date}</span></div>
+        <p className="brief">{current.fact}</p>
+        <div className="evidence"><small>EVIDENCE</small>{current.evidence}</div>
+      </div>
+      <aside className={`hotspot-card ${detail?"open":""}`}>
+        <button onClick={()=>setDetail(false)} aria-label="关闭结构说明">×</button><small>SELECTED TRAIT</small><h2>{current.hotspot}</h2><p>{current.hotspotDetail}</p>
+      </aside>
+      <div className="model-meta"><span>{current.environment}</span><b>CONCEPTUAL 3D RECONSTRUCTION</b><small>概念复原，非按比例化石扫描</small></div>
+      <button className={`hotspot-toggle ${hotspot?"active":""}`} onClick={()=>{setHotspot(!hotspot);setDetail(false)}}><i/>{hotspot?"结构热点已开启":"开启结构热点"}</button>
+      <div className="gesture"><span>↔</span> 拖拽旋转 <i/>滚轮推进 <i/>点击光点解剖</div>
+      <button className="prev" onClick={()=>go(stage-1)} disabled={stage===0} aria-label="上一阶段">←</button><button className="next" onClick={()=>go(stage+1)} disabled={stage===stages.length-1} aria-label="下一阶段">→</button>
+    </section>
+    <footer className="timeline">
+      <div className="scale"><span>≥ 3.7 Ga</span><div className="track"><i style={{width:`${progress}%`}}/><b style={{left:`${progress}%`}}/></div><span>NOW</span></div>
+      <nav aria-label="演化阶段">{stages.map((s,i)=><button key={s.id} className={stage===i?"active":""} onClick={()=>go(i)} aria-current={stage===i?"step":undefined}><span>{String(i+1).padStart(2,"0")}</span><b>{s.short}</b><small>{s.time}</small></button>)}</nav>
+    </footer>
+  </main>;
 }
